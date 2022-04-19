@@ -1,5 +1,6 @@
-var SimpleStorage = artifacts.require("./SimpleStorage.sol");
+var MyToken = artifacts.require("./MyToken.sol");
 
-module.exports = function(deployer) {
-  deployer.deploy(SimpleStorage);
+//deployer è l'handle per accedere alla blockchain
+module.exports = async function(deployer) {
+  await deployer.deploy(MyToken, 10000000);
 };
