@@ -9,7 +9,7 @@ import "./App.css";
 class App extends Component {
   //Meglio non avere nello state account ecc ma storarli come class variable e si fa 
   //cambiando ad esempio const web3... con this.web3...
-  state = { loaded: false };
+  state = { loaded: false, kycAddress: "0x123", tokenSaleAddress: null, userTokens: 0 };
 
   componentDidMount = async () => {
     try {
@@ -18,6 +18,7 @@ class App extends Component {
 
       // Use web3 to get the user's accounts.
       this.accounts = await this.web3.eth.getAccounts();
+      this.networkId = await this.web3.eth.net.getId();
 
       this.tokenInstance = new this.web3.eth.Contract(
         MyToken.abi,
@@ -34,7 +35,8 @@ class App extends Component {
 
       // Set web3, accounts, and contract to the state, and then proceed with an
       // example of interacting with the contract's methods.
-      this.setState({ loaded: true });
+      this.listenToTokenTransfer();
+      this.setState({ loaded: true, tokenSaleAddress: MyTokenSale.networks[this.networkId].address }, this.updateUserTokens);
     } catch (error) {
       // Catch any errors for any of the above operations.
       alert(
@@ -57,23 +59,50 @@ class App extends Component {
     this.setState({ storageValue: response });
   };
 
+  updateUserTokens = async () => {
+    let userTokens = await this.tokenInstance.methods.balanceOf(this.accounts[0]).call();
+    this.setState({userTokens: userTokens})
+  }
+
+  listenToTokenTransfer = async() => {
+    this.tokenInstance.events.Transfer({to: this.accounts[0]}).on("data", this.updateUserTokens);
+  }
+
+  handleBuyTokens = async() => {
+    await this.tokenSaleInstance.methods.buyTokens(this.accounts[0]).send({from: this.accounts[0], value: this.web3.utils.toWei("1", "Wei")});
+  }
+
+  handleInputChange = (event) => {
+    const target = event.target;
+    const value = target.type === "checkbox" ? target.checked : target.value;
+    const name = target.name;
+    //name è tra parentesi perchè è dinamico: cioè è il name della property scatenata dall'event, nel nostro caso "kycAddress"
+    this.setState({
+      [name]: value
+    });
+  }
+
+  //Async perchè c'è un await nel body
+  handleKycWhitelisting = async() => {
+    await this.kycContractInstance.methods.setKycCompleted(this.state.kycAddress).send({from: this.accounts[0]});
+    alert("KYC for " + this.state.kycAddress + " is completed");
+  }
+
   render() {
     if (!this.state.loaded) {
       return <div>Loading Web3, accounts, and contract...</div>;
     }
     return (
       <div className="App">
-        <h1>Good to Go!</h1>
-        <p>Your Truffle Box is installed and ready.</p>
-        <h2>Smart Contract Example</h2>
-        <p>
-          If your contracts compiled and migrated successfully, below will show
-          a stored value of 5 (by default).
-        </p>
-        <p>
-          Try changing the value stored on <strong>line 42</strong> of App.js.
-        </p>
-        <div>The stored value is: {this.state.storageValue}</div>
+        <h1>Dughito token sale!</h1>
+        <p>Get your tokens today</p>
+        <h2>KYC Whitelisting</h2>
+        Address to allow: <input type="text" name="kycAddress" value={this.state.kycAddress} onChange={this.handleInputChange} />
+        <button type="button" onClick={this.handleKycWhitelisting}>Add to Whitelist</button>
+        <h2>Buy tokens</h2>
+        <p>If you want to buy tokens send ether to this address: {this.state.tokenSaleAddress}</p>
+        <p>You currently have: {this.state.userTokens}</p>
+        <button type="button" onClick={this.handleBuyTokens}>Buy more tokens</button>
       </div>
     );
   }
